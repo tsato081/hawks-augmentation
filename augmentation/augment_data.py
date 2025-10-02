@@ -115,17 +115,34 @@ def main():
         print("\nドライラン完了")
         return 0
 
-    # ステップ2: Few-shot代表例の選定
-    print("\n[ステップ2] Few-shot代表例を選定中...")
+    # ステップ2: スタイル別Few-shot代表例の選定（埋め込みベースのクラスタリング）
+    print("\n[ステップ2] スタイル別Few-shot代表例を選定中（埋め込みクラスタリング）...")
     selector = FewShotSelector(embedding_model=None, min_similarity=0.90)
-    fewshot_reps = selector.select_for_all_categories(valid_df, text_column='body')
-    print(f"選定完了: {len(fewshot_reps)}カテゴリ")
+    fewshot_reps = selector.select_for_all_categories(valid_df, text_column='body', samples_per_style=3)
 
-    # ステップ3: スタイル配分マトリクス生成
-    print("\n[ステップ3] スタイル配分マトリクスを生成中...")
-    categories = list(analysis['needed_samples'].keys())
-    style_matrix = get_category_style_matrix(categories, analysis['needed_samples'])
-    print(f"配分完了: {len(style_matrix)}カテゴリ x {len(STYLE_PRESETS)}スタイル")
+    total_styles = sum(num_styles for _, num_styles in fewshot_reps.values())
+    print(f"選定完了: {len(fewshot_reps)}カテゴリ, 合計{total_styles}スタイル")
+
+    # ステップ3: 動的スタイル配分マトリクス生成
+    print("\n[ステップ3] 動的スタイル配分マトリクスを生成中...")
+    style_matrix = {}
+    for category in analysis['needed_samples'].keys():
+        if category in fewshot_reps:
+            style_reps, num_styles = fewshot_reps[category]
+            needed = analysis['needed_samples'][category]
+
+            # スタイルごとに均等配分
+            base_count = needed // num_styles
+            remainder = needed % num_styles
+
+            style_allocation = {}
+            for style_id in range(num_styles):
+                count = base_count + (1 if style_id < remainder else 0)
+                style_allocation[style_id] = count
+
+            style_matrix[category] = style_allocation
+
+    print(f"配分完了: {len(style_matrix)}カテゴリ（スタイル数は動的）")
 
     # ステップ4: モジュール初期化
     print("\n[ステップ4] LLM生成モジュールを初期化中...")

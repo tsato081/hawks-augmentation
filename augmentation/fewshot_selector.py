@@ -1,11 +1,11 @@
 """
 Few-shot選定モジュール
-埋め込みベースのクラスタリングでカテゴリ内多様性を確保
+埋め込みベースのクラスタリングで文体を分類し、スタイル別にfew-shot例を選定
 """
 
 import numpy as np
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 import math
@@ -143,18 +143,90 @@ class FewShotSelector:
         keep_indices = [idx for i, idx in enumerate(rep_df.index) if i not in to_remove]
         return rep_df.loc[keep_indices]
 
+    def select_style_based_representatives(
+        self,
+        df: pd.DataFrame,
+        category: str,
+        text_column: str = 'body',
+        samples_per_style: int = 3
+    ) -> Tuple[Dict[int, List[Dict]], int]:
+        """
+        カテゴリ内で文体ベースのクラスタリングを行い、スタイル別に代表例を選定
+
+        Args:
+            df: データフレーム
+            category: 対象カテゴリ
+            text_column: テキストカラム名
+            samples_per_style: スタイル（クラスタ）あたりのサンプル数
+
+        Returns:
+            ({style_id: [examples]}, num_styles)のタプル
+        """
+        cat_df = df[df['category'] == category].copy()
+        n = len(cat_df)
+
+        if n == 0:
+            return {}, 0
+
+        # K値の計算: K = min(6, max(3, ⌊√(n/3)⌋))
+        k = min(6, max(3, int(math.sqrt(n / 3))))
+        k = min(k, n)
+
+        # 埋め込み生成
+        texts = cat_df[text_column].astype(str).tolist()
+        embeddings = self._get_embeddings(texts)
+
+        if k == 1:
+            # 1クラスタの場合
+            selected = cat_df.head(min(samples_per_style, n))
+            return {0: selected.to_dict('records')}, 1
+
+        # KMeansクラスタリング（クラスタ = 文体スタイル）
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        cat_df['style_cluster'] = kmeans.fit_predict(embeddings)
+
+        # 各クラスタ（スタイル）から複数サンプルを選択
+        style_representatives = {}
+        for cluster_id in range(k):
+            cluster_df = cat_df[cat_df['style_cluster'] == cluster_id]
+            if len(cluster_df) == 0:
+                continue
+
+            cluster_indices = cluster_df.index.tolist()
+            cluster_positions = [cat_df.index.get_loc(idx) for idx in cluster_indices]
+            cluster_embeddings = embeddings[cluster_positions]
+            centroid = kmeans.cluster_centers_[cluster_id]
+
+            # 中心に近い順にsamples_per_style件を選択
+            distances = np.linalg.norm(cluster_embeddings - centroid, axis=1)
+            sorted_indices = np.argsort(distances)
+            num_to_select = min(samples_per_style, len(cluster_indices))
+            selected_indices = [cluster_indices[i] for i in sorted_indices[:num_to_select]]
+
+            selected_samples = cat_df.loc[selected_indices].to_dict('records')
+            style_representatives[cluster_id] = selected_samples
+
+        return style_representatives, k
+
     def select_for_all_categories(
         self,
         df: pd.DataFrame,
-        text_column: str = 'body'
-    ) -> Dict[str, pd.DataFrame]:
-        """全カテゴリで代表例を選定"""
+        text_column: str = 'body',
+        samples_per_style: int = 3
+    ) -> Dict[str, Tuple[Dict[int, List[Dict]], int]]:
+        """全カテゴリでスタイル別代表例を選定
+
+        Returns:
+            {category: ({style_id: [examples]}, num_styles)}
+        """
         result = {}
         categories = df['category'].unique()
 
         for category in categories:
-            rep_df = self.select_representatives(df, category, text_column)
-            if len(rep_df) > 0:
-                result[category] = rep_df
+            style_reps, num_styles = self.select_style_based_representatives(
+                df, category, text_column, samples_per_style
+            )
+            if style_reps:
+                result[category] = (style_reps, num_styles)
 
         return result

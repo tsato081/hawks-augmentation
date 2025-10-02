@@ -19,8 +19,8 @@ class BatchController:
         prompt_builder,
         llm_generator,
         quality_filter,
-        fewshot_reps: Dict[str, pd.DataFrame],
-        style_matrix: Dict[str, Dict[str, int]],
+        fewshot_reps: Dict[str, tuple],  # {category: ({style_id: [examples]}, num_styles)}
+        style_matrix: Dict[str, Dict[int, int]],  # {category: {style_id: count}}
         max_retry_per_sample: int = 3
     ):
         """
@@ -28,7 +28,7 @@ class BatchController:
             prompt_builder: PromptBuilderインスタンス
             llm_generator: LLMGeneratorインスタンス
             quality_filter: QualityFilterインスタンス
-            fewshot_reps: カテゴリ毎のfew-shot代表例
+            fewshot_reps: カテゴリ毎のスタイル別few-shot代表例
             style_matrix: カテゴリ×スタイル配分マトリクス
             max_retry_per_sample: サンプル毎の最大再生成回数
         """
@@ -169,23 +169,40 @@ class BatchController:
 
         return pd.DataFrame(all_results)
 
-    def _get_fewshot_examples(self, category: str) -> List[Dict[str, str]]:
-        """カテゴリのfew-shot例を取得"""
+    def _get_fewshot_examples(self, category: str, style_id: int) -> List[Dict[str, str]]:
+        """カテゴリとスタイルIDに対応するfew-shot例を取得"""
         if category not in self.fewshot_reps:
             return []
 
-        rep_df = self.fewshot_reps[category]
-        examples = []
+        style_reps, _ = self.fewshot_reps[category]
+        if style_id not in style_reps:
+            return []
 
-        for _, row in rep_df.iterrows():
-            examples.append({
-                'id': row.name if hasattr(row, 'name') else '',
-                'title': row.get('title', ''),
-                'body': row.get('body', ''),
-                'category': row.get('category', category)
-            })
+        # style_repsは既に辞書のリストなのでそのまま返す
+        return style_reps[style_id]
 
-        return examples
+    def _generate_style_instruction(self, few_shot_examples: List[Dict], style_id: int) -> str:
+        """Few-shot例から動的にスタイル指示を生成"""
+        if not few_shot_examples:
+            return f"文体スタイル{style_id}で生成してください。"
+
+        # 簡易的な特徴抽出
+        avg_title_len = sum(len(ex.get('title', '')) for ex in few_shot_examples) // len(few_shot_examples)
+        avg_body_len = sum(len(ex.get('body', '')) for ex in few_shot_examples) // len(few_shot_examples)
+
+        # である調・ます調の判定
+        dearu_count = sum(ex.get('body', '').count('である') for ex in few_shot_examples)
+        masu_count = sum(ex.get('body', '').count('ます') for ex in few_shot_examples)
+        tone = "である調" if dearu_count > masu_count else "です・ます調"
+
+        return f"""
+文体スタイル: スタイル{style_id}（データから学習）
+- 参考例の平均タイトル長: 約{avg_title_len}字
+- 参考例の平均本文長: 約{avg_body_len}字
+- 推定口調: {tone}
+- 本文文字数: 120〜600字
+- 参考例の文体に合わせつつ、内容は独自に生成してください
+"""
 
     def _save_intermediate(self, results: List[Dict], checkpoint_num: int):
         """中間結果を保存"""
@@ -219,7 +236,6 @@ class BatchController:
             return []
 
         style_allocation = self.style_matrix[category]
-        few_shot_examples = self._get_fewshot_examples(category)
         reference_bodies = original_df[original_df['category'] == category]['body'].astype(str).tolist()
 
         all_generated = []
@@ -227,14 +243,20 @@ class BatchController:
 
         print(f"\n=== カテゴリ: {category} (必要数: {total_needed}) ===")
 
-        for style, needed_count in style_allocation.items():
+        for style_id, needed_count in style_allocation.items():
             if needed_count == 0:
                 continue
 
-            print(f"  スタイル: {style} ({needed_count}件)")
+            # スタイルIDに対応するfew-shot例を取得
+            few_shot_examples = self._get_fewshot_examples(category, style_id)
+            if not few_shot_examples:
+                print(f"  スタイル{style_id}: few-shot例なし、スキップ")
+                continue
 
-            # プロンプトを事前生成
-            style_instruction = get_style_prompt(style)
+            print(f"  スタイル{style_id} ({needed_count}件)")
+
+            # 動的スタイル指示（few-shot例の特徴から生成）
+            style_instruction = self._generate_style_instruction(few_shot_examples, style_id)
 
             prompts = []
             num_batches = (needed_count + 2) // 3  # 3件ずつ生成
@@ -242,7 +264,7 @@ class BatchController:
             for _ in range(num_batches):
                 messages = self.prompt_builder.build_messages(
                     category=category,
-                    style=style,
+                    style=f"スタイル{style_id}",
                     style_instruction=style_instruction,
                     few_shot_examples=few_shot_examples,
                     num_samples=3
@@ -253,10 +275,9 @@ class BatchController:
             print(f"    非同期生成中... ({len(prompts)}バッチ)")
             batch_results = await self.llm_generator.generate_batch_async(prompts, num_samples_per_prompt=3)
 
-            # フィルタリングとメタデータ追加
-            style_preset = STYLE_PRESETS.get(style, {})
-            title_range = style_preset.get('title_length', (10, 50))
-            body_range = style_preset.get('body_length', (120, 500))
+            # フィルタリング（文字数範囲は120-600で固定）
+            title_range = None  # タイトル制限なし
+            body_range = (120, 600)
 
             generated_count = 0
             for batch_idx, samples in enumerate(batch_results):
@@ -279,7 +300,8 @@ class BatchController:
                 for sample in passed_samples:
                     sample['is_synth'] = True
                     sample['seed_ids'] = [str(ex.get('id', '')) for ex in few_shot_examples]
-                    sample['prompt_style'] = style
+                    sample['prompt_style'] = f"スタイル{style_id}"
+                    sample['style_cluster_id'] = style_id
                     sample['gen_model'] = self.llm_generator.model
                     sample['created_at'] = datetime.now().isoformat()
                     sample['uuid'] = str(uuid.uuid4())
