@@ -120,8 +120,15 @@ class PromptBuilder:
 """
         # Few-shot例を追加
         for i, example in enumerate(few_shot_examples[:3], 1):
-            title = example.get('title', '').strip() or '（タイトルなし）'
-            body = example.get('body', '').strip()[:200]  # 200文字まで
+            # NaN対応: floatの場合は空文字列に変換
+            title_val = example.get('title', '')
+            title = str(title_val).strip() if not isinstance(title_val, float) or not pd.isna(title_val) else ''
+            title = title or '（タイトルなし）'
+
+            body_val = example.get('body', '')
+            body = str(body_val).strip() if not isinstance(body_val, float) or not pd.isna(body_val) else ''
+            body = body[:200]  # 200文字まで
+
             prompt += f"{i}. タイトル: {title}\n   本文抜粋: {body}...\n\n"
 
         prompt += f"""
