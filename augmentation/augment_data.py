@@ -10,6 +10,10 @@ import pandas as pd
 from pathlib import Path
 import sys
 import os
+from dotenv import load_dotenv
+
+# .envファイルを読み込み
+load_dotenv()
 
 # モジュールのインポート
 from data_analyzer import DataAnalyzer
