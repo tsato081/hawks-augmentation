@@ -36,10 +36,10 @@ class QualityFilter:
         # TF-IDFベクトライザー（類似度計算用）
         self.vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(2, 3))
 
-        # 禁止ワードリスト（実名・固有名詞のパターン）
+        # 禁止ワードリスト（実在情報のパターン）
         self.forbidden_patterns = [
             r'https?://[^\s]+',  # URL
-            r'\d{4}年\d{1,2}月\d{1,2}日',  # 具体的な日付
+            # 日付は削除（ニュース調などで必要）
             r'〒\d{3}-\d{4}',  # 郵便番号
             r'電話.*\d{2,4}-\d{2,4}-\d{4}',  # 電話番号
         ]

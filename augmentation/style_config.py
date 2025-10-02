@@ -10,7 +10,7 @@ STYLE_PRESETS = {
     "ニュース": {
         "description": "報道調の客観的な文体",
         "title_length": (18, 42),
-        "body_length": (220, 420),
+        "body_length": (160, 420),
         "tone": "である調、事実を淡々と伝える"
     },
     "ブログ": {
