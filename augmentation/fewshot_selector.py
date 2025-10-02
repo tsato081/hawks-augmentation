@@ -91,7 +91,9 @@ class FewShotSelector:
                 continue
 
             cluster_indices = cluster_df.index.tolist()
-            cluster_embeddings = embeddings[[df.index.get_loc(idx) for idx in cluster_indices]]
+            # cat_df内の位置を使ってembeddingsにアクセス
+            cluster_positions = [cat_df.index.get_loc(idx) for idx in cluster_indices]
+            cluster_embeddings = embeddings[cluster_positions]
             centroid = kmeans.cluster_centers_[cluster_id]
 
             # 中心に最も近いサンプルを選択
@@ -102,7 +104,7 @@ class FewShotSelector:
         rep_df = cat_df.loc[representatives].copy()
 
         # 相互類似度チェック（0.90未満）
-        rep_df = self._filter_by_mutual_similarity(rep_df, embeddings, df)
+        rep_df = self._filter_by_mutual_similarity(rep_df, embeddings, cat_df)
 
         return rep_df.drop(columns=['cluster'], errors='ignore')
 
@@ -110,14 +112,14 @@ class FewShotSelector:
         self,
         rep_df: pd.DataFrame,
         all_embeddings: np.ndarray,
-        original_df: pd.DataFrame
+        cat_df: pd.DataFrame
     ) -> pd.DataFrame:
         """相互類似度が高すぎる組を除外"""
         if len(rep_df) <= 1:
             return rep_df
 
-        # 代表例の埋め込みを抽出
-        rep_indices = [original_df.index.get_loc(idx) for idx in rep_df.index]
+        # 代表例の埋め込みを抽出（cat_df内の位置を使用）
+        rep_indices = [cat_df.index.get_loc(idx) for idx in rep_df.index]
         rep_embeddings = all_embeddings[rep_indices]
 
         # コサイン類似度行列
