@@ -96,6 +96,12 @@ MIN_STYLES_PER_CATEGORY = 5
 # 各スタイルの最低件数
 MIN_SAMPLES_PER_STYLE = 5
 
+# カテゴリ毎の許可スタイル（指定がない場合は全スタイル許可）
+CATEGORY_ALLOWED_STYLES = {
+    "債権譲渡": ["ニュース"],  # ニュース調のみ
+    # 他のカテゴリは全スタイル許可（追加する場合はここに記載）
+}
+
 
 def get_style_allocation(total_samples: int, category_count: int) -> Dict[str, int]:
     """
@@ -175,12 +181,15 @@ def get_category_style_matrix(categories: List[str], samples_per_category: Dict[
         if needed == 0:
             continue
 
-        # カテゴリ内でスタイルを配分
-        styles = list(STYLE_PRESETS.keys())
+        # カテゴリ毎の許可スタイルを取得（指定がない場合は全スタイル）
+        if category in CATEGORY_ALLOWED_STYLES:
+            allowed_styles = CATEGORY_ALLOWED_STYLES[category]
+        else:
+            allowed_styles = list(STYLE_PRESETS.keys())
 
-        # 最低スタイル数を保証
-        num_styles = max(MIN_STYLES_PER_CATEGORY, min(len(styles), needed // MIN_SAMPLES_PER_STYLE))
-        selected_styles = styles[:num_styles]
+        # 最低スタイル数を保証（ただし許可スタイル数を超えない）
+        num_styles = max(1, min(MIN_STYLES_PER_CATEGORY, len(allowed_styles), needed // MIN_SAMPLES_PER_STYLE))
+        selected_styles = allowed_styles[:num_styles]
 
         # 配分計算
         base_count = needed // num_styles
