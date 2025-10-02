@@ -9,68 +9,68 @@ from typing import Dict, List, Tuple
 STYLE_PRESETS = {
     "ニュース": {
         "description": "報道調の客観的な文体",
-        "title_length": (18, 42),
-        "body_length": (160, 420),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "である調、事実を淡々と伝える"
     },
     "ブログ": {
         "description": "個人的な視点を含む解説調",
-        "title_length": (20, 40),
-        "body_length": (260, 520),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "です・ます調、読者に語りかける"
     },
     "プレスリリース": {
         "description": "企業公式発表の形式",
-        "title_length": (25, 45),
-        "body_length": (180, 360),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "丁寧語、正式な表現"
     },
     "議事録": {
         "description": "会議や議論の記録",
-        "title_length": (15, 35),
-        "body_length": (160, 320),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "簡潔、箇条書き的"
     },
     "行政告知": {
         "description": "自治体や公的機関の通知",
-        "title_length": (20, 40),
-        "body_length": (180, 350),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "公的文書調、明確な指示"
     },
     "QA": {
         "description": "質問と回答の形式",
-        "title_length": (15, 35),
-        "body_length": (160, 300),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "Q:〜、A:〜の構造"
     },
     "SNS投稿": {
         "description": "SNS風の短文投稿",
-        "title_length": (10, 30),
-        "body_length": (120, 200),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 300),
         "tone": "カジュアル、絵文字なし"
     },
     "コラム": {
         "description": "専門家の解説・意見",
-        "title_length": (18, 38),
-        "body_length": (280, 500),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "である調、分析的"
     },
     "FAQ": {
         "description": "よくある質問集",
-        "title_length": (12, 32),
-        "body_length": (140, 280),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "Q&A形式、明瞭"
     },
     "商品案内": {
         "description": "製品・サービス紹介",
-        "title_length": (15, 35),
-        "body_length": (180, 340),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "魅力を伝える、セールス調は避ける"
     },
     "社内連絡": {
         "description": "社内向けの通知文",
-        "title_length": (15, 35),
-        "body_length": (150, 300),
+        "title_length": None,  # 制限なし
+        "body_length": (120, 600),
         "tone": "簡潔、要点明確"
     }
 }
@@ -144,15 +144,17 @@ def get_style_prompt(style_name: str) -> str:
         style_name = "ニュース"  # デフォルト
 
     style = STYLE_PRESETS[style_name]
-    title_min, title_max = style["title_length"]
+    title_length = style["title_length"]
     body_min, body_max = style["body_length"]
+
+    # タイトル文字数指示（Noneの場合は省略）
+    title_instruction = "" if title_length is None else f"- タイトル文字数: 適度な長さ（目安: 15-50字程度）\n"
 
     return f"""
 文体スタイル: {style_name}
 - {style['description']}
 - 口調: {style['tone']}
-- タイトル文字数: {title_min}〜{title_max}字
-- 本文文字数: {body_min}〜{body_max}字
+{title_instruction}- 本文文字数: {body_min}〜{body_max}字
 """
 
 

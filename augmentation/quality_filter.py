@@ -125,14 +125,13 @@ class QualityFilter:
         body_len = len(body)
 
         # デフォルトレンジ
-        if title_range is None:
-            title_range = (10, 50)
         if body_range is None:
             body_range = (self.min_body_length, self.max_body_length)
 
-        # タイトルチェック
-        if not (title_range[0] <= title_len <= title_range[1]):
-            return False, f"タイトル文字数が範囲外: {title_len}字 (範囲: {title_range[0]}-{title_range[1]})"
+        # タイトルチェック（Noneの場合はスキップ）
+        if title_range is not None:
+            if not (title_range[0] <= title_len <= title_range[1]):
+                return False, f"タイトル文字数が範囲外: {title_len}字 (範囲: {title_range[0]}-{title_range[1]})"
 
         # 本文チェック
         if not (body_range[0] <= body_len <= body_range[1]):
