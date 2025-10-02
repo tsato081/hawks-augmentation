@@ -320,7 +320,9 @@ class BatchController:
         print(f"データ拡張開始（非同期処理）: {len(categories)}カテゴリ")
         print(f"{'='*60}")
 
-        for i, category in enumerate(categories):
+        # tqdmで進捗表示
+        from tqdm import tqdm
+        for i, category in enumerate(tqdm(categories, desc="カテゴリ生成進捗", unit="カテゴリ")):
             results = await self.generate_for_category_async(category, original_df)
             all_results.extend(results)
 
