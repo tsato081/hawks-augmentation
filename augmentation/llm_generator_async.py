@@ -73,10 +73,15 @@ class AsyncLLMGenerator:
                 )
 
                 content = response.choices[0].message.content.strip()
+                print(f"  [DEBUG] LLM応答受信 (長さ: {len(content)}文字)")
                 samples = self._parse_json_response(content)
 
                 if samples and len(samples) > 0:
+                    print(f"  [DEBUG] JSONパース成功: {len(samples)}件取得")
                     return samples[:num_samples]
+                else:
+                    print(f"  [DEBUG] JSONパース失敗または空配列")
+                    print(f"  [DEBUG] 応答内容: {content[:500]}...")
 
             except Exception as e:
                 print(f"  生成エラー (試行 {attempt}/{self.max_retries}): {e}")

@@ -259,16 +259,19 @@ class BatchController:
             body_range = style_preset.get('body_length', (120, 500))
 
             generated_count = 0
-            for samples in batch_results:
+            for batch_idx, samples in enumerate(batch_results):
                 if not samples:
+                    print(f"    [DEBUG] バッチ{batch_idx}: サンプルなし")
                     continue
 
-                passed_samples, _ = self.quality_filter.filter_batch(
+                print(f"    [DEBUG] バッチ{batch_idx}: {len(samples)}件受信")
+                passed_samples, filtered_out = self.quality_filter.filter_batch(
                     samples,
                     reference_bodies,
                     title_range=title_range,
                     body_range=body_range
                 )
+                print(f"    [DEBUG] フィルター結果: {len(passed_samples)}件合格 / {len(filtered_out)}件除外")
 
                 for sample in passed_samples:
                     sample['is_synth'] = True
