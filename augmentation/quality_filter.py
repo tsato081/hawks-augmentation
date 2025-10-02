@@ -168,9 +168,8 @@ class QualityFilter:
             if re.search(pattern, text):
                 return False, f"禁止パターン検出: {pattern}"
 
-        # 実名っぽいパターン（カタカナ+さん/氏/社長など）
-        if re.search(r'[ァ-ヶー]{2,}(さん|氏|社長|代表)', text):
-            return False, "実名の可能性があるパターン検出"
+        # カタカナ名前チェックは削除（架空の名前を許可するため）
+        # 架空の名前（田中氏、サトウ社長など）を使うことを推奨しているため
 
         return True, ""
 
