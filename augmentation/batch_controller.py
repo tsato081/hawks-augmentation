@@ -272,6 +272,9 @@ class BatchController:
                     body_range=body_range
                 )
                 print(f"    [DEBUG] フィルター結果: {len(passed_samples)}件合格 / {len(filtered_out)}件除外")
+                if filtered_out:
+                    for reject in filtered_out[:2]:  # 最初の2件の理由を表示
+                        print(f"    [DEBUG] 除外理由: {', '.join(reject['reasons'])}")
 
                 for sample in passed_samples:
                     sample['is_synth'] = True
