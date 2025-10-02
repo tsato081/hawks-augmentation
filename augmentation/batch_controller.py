@@ -10,6 +10,7 @@ from tqdm import tqdm
 import uuid
 from datetime import datetime
 import json
+from style_config import get_style_prompt, STYLE_PRESETS
 
 
 class BatchController:
@@ -233,7 +234,6 @@ class BatchController:
             print(f"  スタイル: {style} ({needed_count}件)")
 
             # プロンプトを事前生成
-            from .style_config import get_style_prompt, STYLE_PRESETS
             style_instruction = get_style_prompt(style)
 
             prompts = []
